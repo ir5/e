@@ -19,7 +19,7 @@ def main():
                         help='真空の誘電率 [Fm-1]')
     args = parser.parse_args()
 
-    img = cv2.imread("circle_2.png")
+    img = cv2.imread("circle.png")
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, bin_img = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
@@ -90,12 +90,10 @@ def main():
     # ec_normals[:, 1] = 1
 
     M = (R[0].T * ec_normals[:, 0] + R[1].T * ec_normals[:, 1]).T
-    E_const = np.array([0.1, -0.4])
+    E_const = np.array([0.1, 0])
     b = -np.dot(E_const, ec_normals.T)
 
     qs = np.linalg.solve(M, b)
-
-    print(qs)
 
     # 電場計算
     E_q = np.dot(R, qs).T  # (n_ec, 2)
@@ -108,14 +106,41 @@ def main():
 
     # 電荷密度
     q_densities = qs / A
-    lim = np.max(np.abs(q_densities))
+
+    print(q_densities)
+
+    # 電場計算
+    height, width, _ = img.shape
+    nx = 20
+    ny = 20
+    ef_poses = []
+    ef_vec = []
+    for ix in range(nx):
+        for iy in range(ny):
+            x = (ix + 0.5) * width / nx
+            y = (iy + 0.5) * height / ny
+            p = np.array([x, y])
+
+            Ep = np.zeros(2)
+            Ep = E_const.copy()
+            for i in range(n_ec):
+                r = (p - ec_poses[i]) * args.pixel_len
+                coef = 1 / (4 * np.pi * args.eps0)
+                Ep += coef * qs[i] * (r / np.linalg.norm(r) ** 3)
+
+            ef_poses.append(p)
+            ef_vec.append(Ep)
+
+    print(ef_vec)
+
+    q_lim = np.max(np.abs(q_densities))
+    vec_lim = np.median(np.abs(ef_vec))
+
+    def to_pt(pos, dx=0, dy=0):
+        return (int(pos[0]) + dx, int(pos[1]) + dy)
 
     for ec_pos, q_density in zip(ec_poses, q_densities):
-
-        def to_pt(pos, dx=0, dy=0):
-            return (int(pos[0]) + dx, int(pos[1]) + dy)
-
-        intensity = int(191 * abs(q_density) / lim) + 64
+        intensity = int(191 * abs(q_density) / q_lim) + 64
         if q_density < 0:
             color = (intensity, 64, 64)
         else:
@@ -123,6 +148,13 @@ def main():
 
         cv2.line(img, to_pt(ec_pos, dx=3), to_pt(ec_pos, dx=-3), color)
         cv2.line(img, to_pt(ec_pos, dy=3), to_pt(ec_pos, dy=-3), color)
+
+    for pos, vec in zip(ef_poses, ef_vec):
+        v = vec * 8 / vec_lim
+        if np.linalg.norm(v) > 8:
+            v *= 8 / np.linalg.norm(v)
+        cv2.line(img, to_pt(pos), to_pt(pos + v), (0, 255, 0))
+        cv2.circle(img, to_pt(pos), 2, (0, 255, 0))
 
     cv2.imwrite("a.png", img)
 
