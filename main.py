@@ -19,7 +19,7 @@ def main():
                         help='真空の誘電率 [Fm-1]')
     args = parser.parse_args()
 
-    img = cv2.imread("circle.png")
+    img = cv2.imread("circle_2.png")
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, bin_img = cv2.threshold(gray, 20, 255, cv2.THRESH_BINARY)
@@ -69,21 +69,6 @@ def main():
     ec_poses = np.array(ec_poses)
     ec_normals = np.array(ec_normals)
 
-    """
-    for ec_pos, ec_normal in zip(ec_poses, ec_normals):
-
-        def to_pt(pos, dx=0, dy=0):
-            return (int(pos[0]) + dx, int(pos[1]) + dy)
-
-        cv2.line(img, to_pt(ec_pos, dx=3), to_pt(ec_pos, dx=-3), (0, 0, 255))
-        cv2.line(img, to_pt(ec_pos, dy=3), to_pt(ec_pos, dy=-3), (0, 0, 255))
-
-        cv2.line(img, to_pt(ec_pos), to_pt(ec_pos + 10 * ec_normal),
-                 (0, 255, 0))
-
-    cv2.imwrite("a.png", img)
-    """
-
     qs = np.zeros(n_ec)  # 該当領域の総電荷
     A = args.thickness * total_len / n_ec  # 該当領域の面積
     R = np.zeros((2, n_ec, n_ec))  # クーロン力の重み行列(成分ごと)
@@ -105,25 +90,41 @@ def main():
     # ec_normals[:, 1] = 1
 
     M = (R[0].T * ec_normals[:, 0] + R[1].T * ec_normals[:, 1]).T
-    E_const = np.array([0.1, 0])
+    E_const = np.array([0.1, -0.4])
     b = -np.dot(E_const, ec_normals.T)
 
     qs = np.linalg.solve(M, b)
 
     print(qs)
 
-    for _ in range(1):
-        # 電場計算
-        E_q = np.dot(R, qs).T  # (n_ec, 2)
-        E = E_q + E_const
+    # 電場計算
+    E_q = np.dot(R, qs).T  # (n_ec, 2)
+    E = E_q + E_const
 
-        # 流入する電荷量計算
-        q_flow = np.array([np.dot(E[i], ec_normals[i]) for i in range(n_ec)])
+    # 流入する電荷量計算
+    q_flow = np.array([np.dot(E[i], ec_normals[i]) for i in range(n_ec)])
 
-        print(q_flow)
+    print(q_flow)
 
-        # 電荷量の更新
-        # qs += args.update_rate * q_flow
+    # 電荷密度
+    q_densities = qs / A
+    lim = np.max(np.abs(q_densities))
+
+    for ec_pos, q_density in zip(ec_poses, q_densities):
+
+        def to_pt(pos, dx=0, dy=0):
+            return (int(pos[0]) + dx, int(pos[1]) + dy)
+
+        intensity = int(191 * abs(q_density) / lim) + 64
+        if q_density < 0:
+            color = (intensity, 64, 64)
+        else:
+            color = (64, 64, intensity)
+
+        cv2.line(img, to_pt(ec_pos, dx=3), to_pt(ec_pos, dx=-3), color)
+        cv2.line(img, to_pt(ec_pos, dy=3), to_pt(ec_pos, dy=-3), color)
+
+    cv2.imwrite("a.png", img)
 
 
 if __name__ == "__main__":
