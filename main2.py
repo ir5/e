@@ -11,30 +11,32 @@ def create_sphere_surface_mesh(n_lat, n_lon):
     返り値は (メッシュ数, 3角形頂点, xyz) の ndarray
     """
     u = np.linspace(0, 2 * np.pi, n_lat + 1)
-    v = np.linspace(-np.pi / 2, np.pi / 2, n_lon + 1)
+    v = np.linspace(-1, 1, n_lon + 1)
     u, v = np.meshgrid(u, v)
     u = u.flatten()
     v = v.flatten()
 
-    r = np.cos(v)
+    t = np.arcsin(v)
+    r = np.cos(t)
     x = r * np.cos(u)
     y = r * np.sin(u)
-    z = np.sin(v)
+    z = v
 
     tri = Delaunay(np.vstack([u, v]).T)
 
     p = np.vstack([x, y, z]).T
 
-    # fig = plt.figure()
-    # ax = fig.add_subplot(projection="3d")
-    q = p[tri.simplices]
-    # ax.scatter(q[:, 0], q[:, 1], q[:, 2], c=q[:, 2])
-    # fig.savefig("a.png")
+    fig = plt.figure()
+    ax = fig.add_subplot(projection="3d")
+    ax.scatter(p[:, 0], p[:, 1], p[:, 2], c=p[:, 2])
+    fig.savefig("a.png")
 
     # 面積0の縮退したメッシュは除く
-    q = np.array([mat for mat in q if not np.isclose(np.linalg.det(mat), 0, atol=1e-6)])
+    mesh = p[tri.simplices]
+    mesh = np.array([mat for mat in mesh
+                     if not np.isclose(np.linalg.det(mat), 0, atol=1e-6)])
 
-    return q
+    return mesh
 
 
 def sample_triangle_points(mat, n_samples):
