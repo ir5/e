@@ -139,10 +139,17 @@ class Solver:
         与えられた点のポテンシャルを計算する (外部電場の影響を考慮して計算する)
         """
         pot = self.pot_fun(p)
+
+        """
         for i in range(self.n):
             r = np.linalg.norm(p - self.gs[i])
             pot += self.qs[i] * min(1 / (4 * np.pi * self.eps0 * r),
                                     self.pot_surface[i])
+        """
+        rs = np.linalg.norm(p - self.gs, axis=1)
+        pot_for_unit = np.minimum(1 / (4 * np.pi * self.eps0 * rs),
+                                  self.pot_surface)
+        pot += np.dot(self.qs, pot_for_unit)
         return pot
 
 
